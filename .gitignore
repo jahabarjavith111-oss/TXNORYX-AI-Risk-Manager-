@@ -1,0 +1,35 @@
+# Env / Secrets
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+backend/backend.log
+frontend/frontend.log
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/.vite/
+
+# Backend
+backend/target/
+*.jar
+*.class
+
+# IDE / OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.settings/
+.classpath
+.factorypath
+.project
+.DS_Store
+*.suo
+nul
+Ctempvite-test/
+Ctmptxnoryx-frontend/
