@@ -18,6 +18,16 @@ public class AIAnalysis {
 
     private double confidence;
 
+    private int fraudProbability;
+
+    private int recoveryProbability;
+
+    private int decisionConfidence;
+
+    private String failureType;
+
+    private String failureExplanation;
+
     private String rootCause;
 
     private String recommendation;
@@ -79,6 +89,46 @@ public class AIAnalysis {
 
     public void setConfidence(double confidence) {
         this.confidence = confidence;
+    }
+
+    public int getFraudProbability() {
+        return fraudProbability;
+    }
+
+    public void setFraudProbability(int fraudProbability) {
+        this.fraudProbability = fraudProbability;
+    }
+
+    public int getRecoveryProbability() {
+        return recoveryProbability;
+    }
+
+    public void setRecoveryProbability(int recoveryProbability) {
+        this.recoveryProbability = recoveryProbability;
+    }
+
+    public int getDecisionConfidence() {
+        return decisionConfidence;
+    }
+
+    public void setDecisionConfidence(int decisionConfidence) {
+        this.decisionConfidence = decisionConfidence;
+    }
+
+    public String getFailureType() {
+        return failureType;
+    }
+
+    public void setFailureType(String failureType) {
+        this.failureType = failureType;
+    }
+
+    public String getFailureExplanation() {
+        return failureExplanation;
+    }
+
+    public void setFailureExplanation(String failureExplanation) {
+        this.failureExplanation = failureExplanation;
     }
 
     public String getRootCause() {
