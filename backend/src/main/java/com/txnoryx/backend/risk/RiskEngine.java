@@ -30,6 +30,17 @@ public class RiskEngine {
         if ("SUSPICIOUS".equals(transaction.getStatus())) {
             score += 30;
             reasons.append("Suspicious transaction flag; ");
+            if (transaction.getAmount() != null && transaction.getAmount().doubleValue() > 100000) {
+                score += 30;
+                reasons.append("Critical high-value suspicious; ");
+            }
+        }
+
+        if ("DECLINED".equals(transaction.getStatus())
+                && transaction.getAmount() != null
+                && transaction.getAmount().doubleValue() > 50000) {
+            score += 25;
+            reasons.append("High-value decline; ");
         }
 
         if (transaction.getFailureReason() != null
