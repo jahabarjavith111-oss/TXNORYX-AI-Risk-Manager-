@@ -20,6 +20,8 @@ public class RecoveryAction {
     @Enumerated(EnumType.STRING)
     private RecoveryStrategy strategy;
 
+    private String retryStrategy;
+
     private String status;
 
     private int attempts;
