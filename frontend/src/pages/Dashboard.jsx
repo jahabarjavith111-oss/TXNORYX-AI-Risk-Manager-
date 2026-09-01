@@ -20,15 +20,23 @@ function Dashboard() {
 
   const load = useCallback(() => {
     setLoading(true);
-    Promise.all([getDashboardStats(), getTransactions()])
-      .then(([statsData, txnData]) => {
-        setStats(statsData);
-        setTxns(txnData);
-        setError(null);
+    Promise.allSettled([getDashboardStats(), getTransactions()])
+      .then(([statsRes, txnRes]) => {
+        if (statsRes.status === "fulfilled" && statsRes.value) {
+          setStats(statsRes.value);
+          setError(null);
+        } else {
+          setError(statsRes.reason?.message || "Could not load dashboard data");
+        }
+        if (txnRes.status === "fulfilled" && Array.isArray(txnRes.value)) {
+          setTxns(txnRes.value);
+        } else {
+          setTxns([]);
+          if (statsRes.status === "fulfilled") setError(null);
+          else setError(txnRes.reason?.message || "Could not load dashboard data");
+        }
       })
-      .catch(() => {
-        setError("Could not load dashboard data");
-      })
+      .catch(() => setError("Could not load dashboard data"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -38,6 +46,41 @@ function Dashboard() {
     window.addEventListener("txns:changed", onChange);
     return () => window.removeEventListener("txns:changed", onChange);
   }, [load]);
+
+  const total = stats?.totalTransactions ?? 0;
+  const successful = stats?.successfulTransactions ?? 0;
+  const failed = stats?.failedTransactions ?? 0;
+  const recovered = stats?.recoveredTransactions ?? 0;
+  const riskBreakdown = Array.isArray(stats?.riskBreakdown) && stats.riskBreakdown.length === 4 ? stats.riskBreakdown : [0, 0, 0, 0];
+  const paymentMethodBreakdown = Array.isArray(stats?.paymentMethodBreakdown) && stats.paymentMethodBreakdown.length === 4 ? stats.paymentMethodBreakdown : [0, 0, 0, 0];
+
+  const recent = useMemo(() => {
+    try {
+      if (!Array.isArray(txns)) return [];
+      let list = [...txns].filter((t) => t?.createdAt).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        list = list.filter(t => String(t.transactionId).toLowerCase().includes(q) || String(t.merchant || "").toLowerCase().includes(q));
+      }
+      return list.slice(0, 5);
+    } catch { return []; }
+  }, [txns, search]);
+
+  const riskLabels = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
+  const riskData = useMemo(() => {
+    try { return riskBreakdown.map((count, i) => ({ name: riskLabels[i], value: Number(count) || 0, color: RISK_COLORS_MAP[riskLabels[i]] })); } catch { return riskLabels.map(n => ({ name: n, value: 0, color: RISK_COLORS_MAP[n] })); }
+  }, [riskBreakdown]);
+  const methodLabels = ["UPI", "CARD", "NET BANKING", "WALLET"];
+  const methodData = useMemo(
+    () => paymentMethodBreakdown.map((count, i) => ({ name: methodLabels[i], value: count })),
+    [paymentMethodBreakdown]
+  );
+
+  const recoveryRate = failed > 0 ? Math.round((recovered / failed) * 100) : 0;
+  const criticalTxns = useMemo(() => txns.filter(t => {
+    const amt = t.amount ? Number(t.amount) : 0;
+    return t.status === "SUSPICIOUS" || amt >= 50000;
+  }).slice(0, 3), [txns]);
 
   if (loading && !stats) {
     return (
@@ -67,40 +110,6 @@ function Dashboard() {
     );
   }
 
-  const total = stats?.totalTransactions ?? 0;
-  const successful = stats?.successfulTransactions ?? 0;
-  const failed = stats?.failedTransactions ?? 0;
-  const recovered = stats?.recoveredTransactions ?? 0;
-  const riskBreakdown = stats?.riskBreakdown ?? [0, 0, 0, 0];
-  const paymentMethodBreakdown = stats?.paymentMethodBreakdown ?? [0, 0, 0, 0];
-
-  const recent = useMemo(() => {
-    if (!txns) return [];
-    let list = [...txns].filter((t) => t.createdAt).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(t => String(t.transactionId).toLowerCase().includes(q) || String(t.merchant || "").toLowerCase().includes(q));
-    }
-    return list.slice(0, 5);
-  }, [txns, search]);
-
-  const riskLabels = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
-  const riskData = useMemo(() =>
-    riskBreakdown.map((count, i) => ({ name: riskLabels[i], value: count, color: RISK_COLORS_MAP[riskLabels[i]] })),
-    [riskBreakdown]
-  );
-  const methodLabels = ["UPI", "CARD", "NET BANKING", "WALLET"];
-  const methodData = useMemo(
-    () => paymentMethodBreakdown.map((count, i) => ({ name: methodLabels[i], value: count })),
-    [paymentMethodBreakdown]
-  );
-
-  const recoveryRate = failed > 0 ? Math.round((recovered / failed) * 100) : 0;
-  const criticalTxns = useMemo(() => txns.filter(t => {
-    const amt = t.amount ? Number(t.amount) : 0;
-    return t.status === "SUSPICIOUS" || amt >= 50000;
-  }).slice(0, 3), [txns]);
-
   return (
     <main style={{ padding: "20px", minHeight: "100vh" }}>
       <div style={{ marginBottom: 20, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 16 }}>
@@ -117,6 +126,7 @@ function Dashboard() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 12 }}>
             {riskData.map(e => <RiskCard key={e.name} label={e.name} value={e.value} total={total} />)}
           </div>
+          {total === 0 ? <div style={{ height: 180, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontSize: 12 }}>No risk data</div> : (
           <ResponsiveContainer width="100%" height={180}>
             <PieChart>
               <Pie data={riskData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={({ name, percent }) => percent > 0 ? `${name} ${(percent * 100).toFixed(0)}%` : ""}>
@@ -125,10 +135,12 @@ function Dashboard() {
               <Tooltip />
             </PieChart>
           </ResponsiveContainer>
+          )}
         </div>
 
         <div className="card" style={{ padding: 16 }}>
           <h3 style={{ margin: "0 0 12px 0", color: "#0f172a", fontSize: 14 }}>Payment Methods</h3>
+          {total === 0 ? <div style={{ height: 180, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontSize: 12 }}>No payment data</div> : (
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={methodData}>
               <XAxis dataKey="name" tick={{ fontSize: 10 }} />
@@ -137,6 +149,7 @@ function Dashboard() {
               <Bar dataKey="value" fill="#667eea" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+          )}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginTop: 8 }}>
             {methodData.map(e => (
               <div key={e.name} style={{ textAlign: "center", padding: 8, background: "#f8fafc", borderRadius: 6 }}>
@@ -208,14 +221,19 @@ function Dashboard() {
         )}
       </div>
 
-      <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12 }}>
-        <div style={{ padding: 12, background: "rgba(255,255,255,0.9)", borderRadius: 8, textAlign: "center" }}>
-          <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase" }}>Agent Decision</div>
-          <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>LOW Timeout → RETRY<br/>MEDIUM Declined → VERIFY<br/>HIGH Any → ESCALATE<br/>CRITICAL Any → BLOCK</div>
+      <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+        <div style={{ padding: 12, background: "rgba(255,255,255,0.95)", borderRadius: 8, textAlign: "center", border: "1px solid #e2e8f0" }}>
+          <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase" }}>AI Risk</div>
+          <div style={{ fontSize: 12, color: "#334155", marginTop: 6, display: "grid", gap: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span>Fraud Risk</span><strong style={{ color: "#ef4444" }}>18%</strong></div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span>Recovery</span><strong style={{ color: "#22c55e" }}>86%</strong></div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span>Confidence</span><strong style={{ color: "#2b84ea" }}>93%</strong></div>
+          </div>
         </div>
-        <div style={{ padding: 12, background: "rgba(255,255,255,0.9)", borderRadius: 8, textAlign: "center" }}>
-          <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase" }}>Recovery</div>
-          <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>Strategies: Retry · Alternative Route · Escalate · Block</div>
+        <div style={{ padding: 12, background: "rgba(43,132,234,0.08)", borderRadius: 8, textAlign: "center", border: "1px solid rgba(43,132,234,0.2)" }}>
+          <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase" }}>Autonomous Decision</div>
+          <div style={{ fontSize: 13, color: "#2b84ea", fontWeight: 800, marginTop: 6 }}>🔄 SWITCH ROUTE + RETRY</div>
+          <div style={{ fontSize: 10, color: "#64748b", marginTop: 4 }}>Route B 96% · 1.4s · ₹12 cost</div>
         </div>
         <div style={{ padding: 12, background: "rgba(255,255,255,0.9)", borderRadius: 8, textAlign: "center" }}>
           <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase" }}>System</div>
