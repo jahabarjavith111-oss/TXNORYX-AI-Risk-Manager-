@@ -48,9 +48,10 @@ export default function RecoveryPanel({ transactionId, onComplete }) {
         <div style={{ background: "rgba(34,197,94,0.08)", borderRadius: 8, padding: "12px", border: "1px solid rgba(34,197,94,0.25)" }}>
           <div style={{ color: "#16a34a", fontWeight: 800 }}>✓ PAYMENT RECOVERED</div>
           <div style={{ fontSize: 12, color: "#334155", marginTop: 6 }}>
-            Strategy: <strong>{result.strategy}</strong> · Attempts: {result.attempts} · Probability: {((result.probability ?? 0) * 100).toFixed(0)}%
+            Strategy: <strong>{result.retryStrategy || result.strategy}</strong> · Attempts: {result.attempts} · Probability: {((result.probability ?? 0) * 100).toFixed(0)}%
           </div>
           <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>{result.message}</div>
+          {result.retryStrategy && <div style={{ fontSize: 10, color: "#2b84ea", marginTop: 4 }}>AI Decision → {result.retryStrategy} {result.strategy !== result.retryStrategy ? `(${result.strategy})` : ""}</div>}
         </div>
       )}
 
