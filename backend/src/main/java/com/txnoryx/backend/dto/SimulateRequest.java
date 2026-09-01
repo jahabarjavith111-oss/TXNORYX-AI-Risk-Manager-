@@ -2,6 +2,8 @@ package com.txnoryx.backend.dto;
 
 public class SimulateRequest {
 
+    public SimulateRequest() {}
+    public SimulateRequest(String scenario) { this.scenario = scenario; }
 
     private String scenario;
 
