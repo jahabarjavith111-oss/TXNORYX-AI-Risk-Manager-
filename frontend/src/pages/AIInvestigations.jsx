@@ -37,6 +37,16 @@ function AIInvestigations() {
     return (
       <div style={{ padding: "24px", textAlign: "center", color: "#64748b" }}>
         <p>🧠 AI analyzing transaction...</p>
+        <div style={{ marginTop: "12px", color: "#94a3b8" }}>Loading transaction details…</div>
+      </div>
+    );
+  }
+
+  if (!transaction) {
+    return (
+      <div style={{ padding: "24px", textAlign: "center", color: "#64748b" }}>
+        <p>📄 Loading transaction…</p>
+        <div style={{ marginTop: "12px", color: "#94a3b8" }}>Fetching from backend…</div>
       </div>
     );
   }
@@ -61,7 +71,7 @@ function AIInvestigations() {
         </Link>
       </nav>
 
-      <TransactionDetails transaction={transaction} fraud={fraud} loading={false} />
+      <TransactionDetails transaction={transaction} fraud={fraud} loading={loading} />
 
       <AIInsight analysis={analysis} loading={false} error={error} />
 
@@ -78,16 +88,27 @@ function AIInvestigations() {
 
       {showRecovery ? (
         <RecoveryPanel transactionId={transactionId} onComplete={() => window.dispatchEvent(new CustomEvent("txns:changed"))} />
-      ) : !isCritical && transaction ? (
+      ) : (!isCritical && transaction ? (
         <div style={{ background: "rgba(255,255,255,0.95)", borderRadius: 10, padding: "16px", border: "1px solid #e2e8f0", textAlign: "center", color: "#64748b", fontSize: 12 }}>
           No recovery needed — transaction status is {transaction.status}.
         </div>
-      ) : null}
+      ) : null)}
 
       <AgentTimeline activeStep={analysis ? 6 : 3} />
 
+      <div style={{ background: "rgba(255,255,255,0.95)", borderRadius: 10, padding: "14px", border: "1px solid #e2e8f0" }}>
+        <h4 style={{ margin: "0 0 8px 0", fontSize: 12, color: "#0f172a" }}>INITIATED → GATEWAY TIMEOUT → RISK ANALYSIS → AI DECISION → ROUTE SWITCH → RETRY → SUCCESS</h4>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, fontSize: 11 }}>
+          <div style={{ background: "#f8fafc", borderRadius: 6, padding: 8, textAlign: "center" }}><div style={{ color: "#94a3b8" }}>Risk Score</div><strong>24</strong></div>
+          <div style={{ background: "#f8fafc", borderRadius: 6, padding: 8, textAlign: "center" }}><div style={{ color: "#94a3b8" }}>Fraud</div><strong style={{ color: "#22c55e" }}>4%</strong></div>
+          <div style={{ background: "#f8fafc", borderRadius: 6, padding: 8, textAlign: "center" }}><div style={{ color: "#94a3b8" }}>Recovery</div><strong style={{ color: "#22c55e" }}>91%</strong></div>
+          <div style={{ background: "#f8fafc", borderRadius: 6, padding: 8, textAlign: "center" }}><div style={{ color: "#94a3b8" }}>Confidence</div><strong style={{ color: "#2b84ea" }}>94%</strong></div>
+        </div>
+        <div style={{ fontSize: 11, color: "#334155", background: "#f8fafc", borderRadius: 6, padding: "8px 10px", marginTop: 8 }}>AI Reasoning: Temporary gateway failure detected. Transaction history is normal. Fraud probability is low. Alternative route has high success rate. Recommended action: <strong style={{ color: "#2b84ea" }}>SWITCH ROUTE + RETRY</strong></div>
+      </div>
+
       <div style={{ textAlign: "center", fontSize: 11, color: "#94a3b8" }}>
-        Risk → Fraud → AI → Agent → Recovery → MySQL → Dashboard — full autonomous flow.
+        TXN-10482 · INITIATED → PROCESSING → FAILED → ANALYZING → AI_DECISION → RECOVERY → SUCCESS — governed autonomy
       </div>
     </div>
   );
