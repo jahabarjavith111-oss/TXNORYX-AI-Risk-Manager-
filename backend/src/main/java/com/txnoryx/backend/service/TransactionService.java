@@ -2,6 +2,8 @@ package com.txnoryx.backend.service;
 
 import com.txnoryx.backend.dto.CreateTransactionRequest;
 import com.txnoryx.backend.dto.SimulateRequest;
+import com.txnoryx.backend.failure.FailureAnalyzer;
+import com.txnoryx.backend.failure.FailureResult;
 import com.txnoryx.backend.model.Transaction;
 import com.txnoryx.backend.model.TransactionEvent;
 import com.txnoryx.backend.repository.TransactionEventRepository;
@@ -18,11 +20,14 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final TransactionEventRepository eventRepository;
+    private final FailureAnalyzer failureAnalyzer;
 
     public TransactionService(TransactionRepository transactionRepository,
-                              TransactionEventRepository eventRepository) {
+                              TransactionEventRepository eventRepository,
+                              FailureAnalyzer failureAnalyzer) {
         this.transactionRepository = transactionRepository;
         this.eventRepository = eventRepository;
+        this.failureAnalyzer = failureAnalyzer;
     }
 
     public Transaction createTransaction(CreateTransactionRequest request) {
@@ -68,6 +73,7 @@ public class TransactionService {
 
         String scenario = request.getScenario();
 
+        FailureResult fr = failureAnalyzer.analyze(scenario, null);
         Transaction transaction = new Transaction();
         transaction.setTransactionId(
                 "TXN-SIM-" + UUID.randomUUID().toString()
@@ -77,8 +83,8 @@ public class TransactionService {
         transaction.setCurrency("INR");
         transaction.setPaymentMethod("UPI");
         transaction.setMerchant("Simulated Merchant");
-        transaction.setStatus("FAILED");
-        transaction.setFailureReason(scenario);
+        transaction.setStatus(fr.getType().getCanonicalStatus());
+        transaction.setFailureReason(scenario + " [" + fr.getType().name() + ": " + failureAnalyzer.explain(fr) + "]");
         transaction.setDeviceId("SIM-DEVICE");
         transaction.setLocation("Simulation");
         transaction.setCreatedAt(LocalDateTime.now());

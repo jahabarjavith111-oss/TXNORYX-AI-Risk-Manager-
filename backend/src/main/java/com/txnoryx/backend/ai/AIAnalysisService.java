@@ -1,9 +1,12 @@
 package com.txnoryx.backend.ai;
 
+import com.txnoryx.backend.failure.FailureAnalyzer;
+import com.txnoryx.backend.failure.FailureResult;
 import com.txnoryx.backend.model.AIAnalysis;
 import com.txnoryx.backend.model.Transaction;
 import com.txnoryx.backend.risk.RiskEngine;
 import com.txnoryx.backend.risk.RiskResult;
+import com.txnoryx.backend.risk.RiskIntelligence;
 import com.txnoryx.backend.repository.TransactionRepository;
 import com.txnoryx.backend.repository.AIAnalysisRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +25,8 @@ public class AIAnalysisService {
     private final TransactionRepository transactionRepository;
     private final AIAnalysisRepository aiAnalysisRepository;
     private final RiskEngine riskEngine;
+    private final RiskIntelligence riskIntelligence;
+    private final FailureAnalyzer failureAnalyzer;
 
     // Ollama config
     private static final String OLLAMA_URL = "http://localhost:11434/api/generate";
@@ -29,10 +34,14 @@ public class AIAnalysisService {
 
 public AIAnalysisService(TransactionRepository transactionRepository,
                          AIAnalysisRepository aiAnalysisRepository,
-                         RiskEngine riskEngine) {
+                         RiskEngine riskEngine,
+                         RiskIntelligence riskIntelligence,
+                         FailureAnalyzer failureAnalyzer) {
         this.transactionRepository = transactionRepository;
         this.aiAnalysisRepository = aiAnalysisRepository;
         this.riskEngine = riskEngine;
+        this.riskIntelligence = riskIntelligence;
+        this.failureAnalyzer = failureAnalyzer;
     }
 
     @Transactional
@@ -44,8 +53,10 @@ public AIAnalysisService(TransactionRepository transactionRepository,
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Transaction not found: " + transactionId));
 
-        // 2️⃣ Compute deterministic risk engine result
+        // 2️⃣ Compute deterministic risk engine result + failure classification
+        FailureResult failure = failureAnalyzer.analyze(transaction);
         RiskResult engineResult = riskEngine.calculate(transaction);
+        RiskResult intelligence = riskIntelligence.analyze(transaction);
 
         // 3️⃣ Build the AI prompt per spec §9-§10
         String prompt = String.format(
@@ -59,6 +70,7 @@ public AIAnalysisService(TransactionRepository transactionRepository,
                         "\nMerchant: %s" +
                         "\nStatus: %s" +
                         "\nFailure Reason: %s" +
+                        "\nFailure Type: %s (%.0f%% — %s)" +
                         "\nDevice: %s" +
                         "\nLocation: %s" +
                         "\nCalculated Risk Score: %d" +
@@ -72,6 +84,7 @@ public AIAnalysisService(TransactionRepository transactionRepository,
                         transaction.getMerchant() != null ? transaction.getMerchant() : "—",
                         transaction.getStatus() != null ? transaction.getStatus() : "—",
                         transaction.getFailureReason() != null ? transaction.getFailureReason() : "—",
+                        failure.getType().name(), failure.getConfidence()*100, failureAnalyzer.explain(failure),
                         transaction.getDeviceId() != null ? transaction.getDeviceId() : "—",
                         transaction.getLocation() != null ? transaction.getLocation() : "—",
                         engineResult.getScore(),
@@ -86,6 +99,11 @@ public AIAnalysisService(TransactionRepository transactionRepository,
         analysis.setRiskScore(engineResult.getScore());
         analysis.setRiskLevel(engineResult.getLevel().name());
         analysis.setConfidence(0.8);
+        analysis.setFraudProbability(intelligence.getFraudProbability());
+        analysis.setRecoveryProbability(intelligence.getRecoveryProbability());
+        analysis.setDecisionConfidence(intelligence.getConfidence());
+        analysis.setFailureType(failure.getType().name());
+        analysis.setFailureExplanation(failureAnalyzer.explain(failure));
         analysis.setRootCause(engineResult.getReason());
         analysis.setRecommendation("RETRY_PAYMENT");
         analysis.setExplanation("The transaction appears to be affected by " + engineResult.getReason().toLowerCase() + " rather than clear fraudulent behavior.");
@@ -130,15 +148,21 @@ public AIAnalysisService(TransactionRepository transactionRepository,
                 if (riskLevel != null && !riskLevel.isEmpty()) {
                     analysis.setRiskLevel(riskLevel);
                 }
+                Double ollamaConf = null;
                 if (confidenceStr != null && !confidenceStr.isEmpty()) {
                     try {
-                        analysis.setConfidence(Double.parseDouble(confidenceStr));
+                        ollamaConf = Double.parseDouble(confidenceStr);
+                        analysis.setConfidence(ollamaConf);
                     } catch (NumberFormatException e) {
                         analysis.setConfidence(0.8);
                     }
                 } else {
                     analysis.setConfidence(0.8);
                 }
+                RiskResult enriched = riskIntelligence.analyze(transaction, ollamaConf != null ? ollamaConf : 0.8);
+                analysis.setFraudProbability(enriched.getFraudProbability());
+                analysis.setRecoveryProbability(enriched.getRecoveryProbability());
+                analysis.setDecisionConfidence(enriched.getConfidence());
                 if (rootCause != null && !rootCause.isEmpty()) {
                     analysis.setRootCause(rootCause);
                 } else {
@@ -159,8 +183,10 @@ public AIAnalysisService(TransactionRepository transactionRepository,
             }
             conn.disconnect();
         } catch (Exception e) {
-            // AI unavailable - engine result stands with engine confidence
-            // confidence already set to 0.8 above
+            RiskResult fallback = riskIntelligence.analyze(transaction, 0.8);
+            analysis.setFraudProbability(fallback.getFraudProbability());
+            analysis.setRecoveryProbability(fallback.getRecoveryProbability());
+            analysis.setDecisionConfidence(fallback.getConfidence());
         }
 
         // 5️⃣ Persist to DB
