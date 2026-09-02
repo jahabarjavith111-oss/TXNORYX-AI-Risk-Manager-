@@ -29,6 +29,8 @@ public class RiskController {
 
     @GetMapping("/analysis/{transactionId}")
     public AIAnalysis getAnalysis(@PathVariable String transactionId) {
+        AIAnalysis cached = aiAnalysisService.getCachedAnalysis(transactionId);
+        if (cached != null) return cached;
         return aiAnalysisService.analyzeTransaction(transactionId);
     }
 

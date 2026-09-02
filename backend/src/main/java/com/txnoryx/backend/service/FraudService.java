@@ -31,13 +31,15 @@ public class FraudService {
     }
 
     public FraudAnalysis analyzeTransaction(String transactionId) {
-        return transactionRepository.findByTransactionId(transactionId)
+        String nid = transactionId != null ? transactionId.trim() : "";
+        return transactionRepository.findByTransactionIdIgnoreCase(nid)
+                .or(() -> transactionRepository.findByTransactionId(nid))
                 .map(tx -> {
                     FraudAnalysis analysis = fraudDetectionEngine.analyze(tx);
-                    persistAnalysis(analysis);
+                    try { persistAnalysis(analysis); } catch (Exception ignored) {}
                     return analysis;
                 })
-                .orElse(null);
+                .orElseThrow(() -> new IllegalArgumentException("Transaction not found: " + nid));
     }
 
     private void persistAnalysis(FraudAnalysis analysis) {

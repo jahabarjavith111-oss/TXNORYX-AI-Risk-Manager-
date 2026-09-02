@@ -11,6 +11,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     Optional<Transaction> findByTransactionId(String transactionId);
 
+    Optional<Transaction> findByTransactionIdIgnoreCase(String transactionId);
+
     long countByStatus(String status);
 
     long countByUserId(Long userId);

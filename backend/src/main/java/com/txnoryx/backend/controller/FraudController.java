@@ -27,7 +27,7 @@ public class FraudController {
 
     @GetMapping(value = "/analyze/{transactionId}", produces = "application/json")
     public FraudAnalysis getFraudAnalyze(@PathVariable String transactionId) {
-        return fraudService.analyzeTransaction(transactionId);
+        try { return fraudService.analyzeTransaction(transactionId); } catch (IllegalArgumentException e) { throw e; }
     }
 
     @PostMapping(value = "/risk-level/{score}", produces = "application/json")

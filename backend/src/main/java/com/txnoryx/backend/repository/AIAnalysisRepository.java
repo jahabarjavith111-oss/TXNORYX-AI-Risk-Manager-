@@ -9,4 +9,6 @@ public interface AIAnalysisRepository
         extends JpaRepository<AIAnalysis, Long> {
 
     Optional<AIAnalysis> findByTransactionId(String transactionId);
+
+    Optional<AIAnalysis> findByTransactionIdIgnoreCase(String transactionId);
 }

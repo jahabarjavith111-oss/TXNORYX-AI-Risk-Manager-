@@ -18,6 +18,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Service
 public class AIAnalysisService {
@@ -44,14 +45,19 @@ public AIAnalysisService(TransactionRepository transactionRepository,
         this.failureAnalyzer = failureAnalyzer;
     }
 
+    public AIAnalysis getCachedAnalysis(String transactionId) {
+        String nid = transactionId != null ? transactionId.trim() : "";
+        return aiAnalysisRepository.findByTransactionIdIgnoreCase(nid).orElse(null);
+    }
+
     @Transactional
     public AIAnalysis analyzeTransaction(String transactionId) {
-
-        // 1️⃣ Fetch the actual transaction from the database
+        String nid = transactionId != null ? transactionId.trim() : "";
         Transaction transaction = transactionRepository
-                .findByTransactionId(transactionId)
+                .findByTransactionIdIgnoreCase(nid)
+                .or(() -> transactionRepository.findByTransactionId(nid))
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Transaction not found: " + transactionId));
+                        "Transaction not found: " + nid));
 
         // 2️⃣ Compute deterministic risk engine result + failure classification
         FailureResult failure = failureAnalyzer.analyze(transaction);
@@ -109,10 +115,12 @@ public AIAnalysisService(TransactionRepository transactionRepository,
         analysis.setExplanation("The transaction appears to be affected by " + engineResult.getReason().toLowerCase() + " rather than clear fraudulent behavior.");
         analysis.setCreatedAt(LocalDateTime.now());
 
-        // Try Ollama
+        analysis.setTransactionId(nid);
         try {
             URL url = new URL(OLLAMA_URL);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setConnectTimeout(3000);
+            conn.setReadTimeout(4000);
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json");
             conn.setDoOutput(true);
@@ -189,8 +197,13 @@ public AIAnalysisService(TransactionRepository transactionRepository,
             analysis.setDecisionConfidence(fallback.getConfidence());
         }
 
-        // 5️⃣ Persist to DB
-        aiAnalysisRepository.save(analysis);
+        try {
+            Optional<AIAnalysis> dup = aiAnalysisRepository.findByTransactionIdIgnoreCase(nid);
+            if (dup.isPresent()) aiAnalysisRepository.delete(dup.get());
+        } catch (Exception ignored) {}
+        try {
+            aiAnalysisRepository.save(analysis);
+        } catch (Exception ignored) {}
         return analysis;
     }
 

@@ -116,18 +116,17 @@ public class TransactionService {
 
 
     public Transaction getTransaction(String transactionId) {
-        return transactionRepository
-                .findByTransactionId(transactionId)
-                .orElseThrow(() ->
-                        new RuntimeException("Transaction not found"));
+        String nid = transactionId != null ? transactionId.trim() : "";
+        return transactionRepository.findByTransactionIdIgnoreCase(nid)
+                .or(() -> transactionRepository.findByTransactionId(nid))
+                .or(() -> transactionRepository.findByTransactionIdIgnoreCase(transactionId))
+                .orElseThrow(() -> new IllegalArgumentException("Transaction not found: " + nid));
     }
 
-
-    public List<TransactionEvent> getTransactionHistory(
-            String transactionId) {
-
-
-        return eventRepository
-                .findByTransactionId(transactionId);
+    public List<TransactionEvent> getTransactionHistory(String transactionId) {
+        String nid = transactionId != null ? transactionId.trim() : "";
+        List<TransactionEvent> ev = eventRepository.findByTransactionId(nid);
+        if (!ev.isEmpty()) return ev;
+        return eventRepository.findByTransactionId(nid.toUpperCase());
     }
 }

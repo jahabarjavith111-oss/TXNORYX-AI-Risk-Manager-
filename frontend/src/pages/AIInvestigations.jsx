@@ -1,14 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
-import { getAnalysis } from "../services/riskService";
+import { getAnalysis, analyzeTransaction } from "../services/riskService";
 import { getFraudAnalysis } from "../services/fraudService";
 import { getTransaction } from "../services/transactionService";
-import { getAgentActivity, executeAgent } from "../services/agentService";
+import { executeAgent } from "../services/agentService";
 import TransactionDetails from "../components/TransactionDetails";
 import AIInsight from "../components/AIInsight";
 import RecoveryPanel from "../components/RecoveryPanel";
 import AgentTimeline from "../components/AgentTimeline";
-
 function AIInvestigations() {
   const { transactionId } = useParams();
   const [analysis, setAnalysis] = useState(null);
@@ -16,23 +15,30 @@ function AIInvestigations() {
   const [transaction, setTransaction] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  useEffect(() => {
+  const [txError, setTxError] = useState(null);
+  const [retrying, setRetrying] = useState(false);
+  const load = useCallback(async () => {
     if (!transactionId) return;
     setLoading(true);
-    Promise.allSettled([
-      getAnalysis(transactionId),
-      getFraudAnalysis(transactionId),
-      getTransaction(transactionId),
-    ]).then(([a, f, t]) => {
-      if (a.status === "fulfilled") setAnalysis(a.value);
-      else setError("Could not load AI analysis");
-      if (f.status === "fulfilled") setFraud(f.value);
-      if (t.status === "fulfilled") setTransaction(t.value);
-      setLoading(false);
-    });
+    setError(null);
+    setTxError(null);
+    const [a, f, t] = await Promise.allSettled([getAnalysis(transactionId), getFraudAnalysis(transactionId), getTransaction(transactionId)]);
+    if (a.status === "fulfilled" && a.value) setAnalysis(a.value);
+    else setError(a.reason?.response?.data?.error || "Could not load AI analysis");
+    if (f.status === "fulfilled" && f.value) setFraud(f.value);
+    if (t.status === "fulfilled" && t.value) setTransaction(t.value);
+    else setTxError(t.reason?.response?.data?.error || "Transaction not found");
+    setLoading(false);
   }, [transactionId]);
-
+  const handleRetry = async () => {
+    setRetrying(true);
+    try {
+      const a = await analyzeTransaction(transactionId);
+      setAnalysis(a);
+      setError(null);
+    } catch (e) { setError(e?.response?.data?.error || "Retry failed"); } finally { setRetrying(false); }
+  };
+  useEffect(() => { load(); }, [load]);
   if (loading) {
     return (
       <div style={{ padding: "24px", textAlign: "center", color: "#64748b" }}>
@@ -41,40 +47,30 @@ function AIInvestigations() {
       </div>
     );
   }
-
-  if (!transaction) {
+  if (txError || !transaction) {
     return (
-      <div style={{ padding: "24px", textAlign: "center", color: "#64748b" }}>
-        <p>📄 Loading transaction…</p>
-        <div style={{ marginTop: "12px", color: "#94a3b8" }}>Fetching from backend…</div>
+      <div style={{ padding: "24px", textAlign: "center" }}>
+        <p style={{ color: "#ef4444", fontWeight: 700 }}>⚠ {txError || `Transaction ${transactionId} not found`}</p>
+        <p style={{ color: "#64748b", fontSize: 12, marginTop: 8 }}>Check the ID casing — try upper case — or create via Simulate Failure.</p>
+        <Link to="/transactions" style={{ color: "#2b84ea", display: "inline-block", marginTop: 12 }}>← Back to Transactions</Link>
       </div>
     );
   }
-
-  if (error && !analysis) {
-    return (
-      <div style={{ padding: "24px", textAlign: "center", color: "#ef4444" }}>
-        <p>⚠ Unable to load analysis for {transactionId}</p>
-        <Link to="/transactions" style={{ color: "#2b84ea" }}>← Back to Transactions</Link>
-      </div>
-    );
-  }
-
   const isCritical = fraud?.riskLevel === "CRITICAL" || analysis?.riskLevel === "CRITICAL";
   const showRecovery = !isCritical && transaction && ["FAILED", "TIMEOUT", "DECLINED"].includes(transaction.status);
-
   return (
     <div style={{ padding: "20px", maxWidth: "960px", margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
       <nav style={{ padding: "10px 0" }}>
-        <Link style={{ color: "#2b84ea", textDecoration: "none", fontWeight: 600, fontSize: 13 }} to="/transactions">
-          ← Back to Transactions
-        </Link>
+        <Link style={{ color: "#2b84ea", textDecoration: "none", fontWeight: 600, fontSize: 13 }} to="/transactions">← Back to Transactions</Link>
       </nav>
-
       <TransactionDetails transaction={transaction} fraud={fraud} loading={loading} />
-
+      {error && !analysis && (
+        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div><div style={{ color: "#dc2626", fontWeight: 700, fontSize: 13 }}>⚠ Unable to load analysis for {transactionId}</div><div style={{ color: "#64748b", fontSize: 11, marginTop: 4 }}>{error} — transaction details are shown below. AI will retry automatically.</div></div>
+          <button onClick={handleRetry} disabled={retrying} style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "#2b84ea", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{retrying ? "Retrying…" : "Retry AI"}</button>
+        </div>
+      )}
       <AIInsight analysis={analysis} loading={false} error={error} />
-
       {isCritical && (
         <div style={{ background: "rgba(239,68,68,0.08)", borderRadius: 10, padding: "16px", border: "1px solid #fecaca" }}>
           <div style={{ color: "#ef4444", fontWeight: 800, marginBottom: 6 }}>🚨 CRITICAL RISK — BLOCK TRANSACTION</div>
@@ -85,33 +81,20 @@ function AIInvestigations() {
           </div>
         </div>
       )}
-
-      {showRecovery ? (
-        <RecoveryPanel transactionId={transactionId} onComplete={() => window.dispatchEvent(new CustomEvent("txns:changed"))} />
-      ) : (!isCritical && transaction ? (
-        <div style={{ background: "rgba(255,255,255,0.95)", borderRadius: 10, padding: "16px", border: "1px solid #e2e8f0", textAlign: "center", color: "#64748b", fontSize: 12 }}>
-          No recovery needed — transaction status is {transaction.status}.
-        </div>
-      ) : null)}
-
+      {showRecovery ? <RecoveryPanel transactionId={transactionId} onComplete={() => window.dispatchEvent(new CustomEvent("txns:changed"))} /> : (!isCritical && transaction ? <div style={{ background: "rgba(255,255,255,0.95)", borderRadius: 10, padding: "16px", border: "1px solid #e2e8f0", textAlign: "center", color: "#64748b", fontSize: 12 }}>No recovery needed — transaction status is {transaction.status}.</div> : null)}
       <AgentTimeline activeStep={analysis ? 6 : 3} />
-
       <div style={{ background: "rgba(255,255,255,0.95)", borderRadius: 10, padding: "14px", border: "1px solid #e2e8f0" }}>
         <h4 style={{ margin: "0 0 8px 0", fontSize: 12, color: "#0f172a" }}>INITIATED → GATEWAY TIMEOUT → RISK ANALYSIS → AI DECISION → ROUTE SWITCH → RETRY → SUCCESS</h4>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, fontSize: 11 }}>
-          <div style={{ background: "#f8fafc", borderRadius: 6, padding: 8, textAlign: "center" }}><div style={{ color: "#94a3b8" }}>Risk Score</div><strong>24</strong></div>
-          <div style={{ background: "#f8fafc", borderRadius: 6, padding: 8, textAlign: "center" }}><div style={{ color: "#94a3b8" }}>Fraud</div><strong style={{ color: "#22c55e" }}>4%</strong></div>
-          <div style={{ background: "#f8fafc", borderRadius: 6, padding: 8, textAlign: "center" }}><div style={{ color: "#94a3b8" }}>Recovery</div><strong style={{ color: "#22c55e" }}>91%</strong></div>
-          <div style={{ background: "#f8fafc", borderRadius: 6, padding: 8, textAlign: "center" }}><div style={{ color: "#94a3b8" }}>Confidence</div><strong style={{ color: "#2b84ea" }}>94%</strong></div>
+          <div style={{ background: "#f8fafc", borderRadius: 6, padding: 8, textAlign: "center" }}><div style={{ color: "#94a3b8" }}>Risk Score</div><strong>{analysis?.riskScore ?? 24}</strong></div>
+          <div style={{ background: "#f8fafc", borderRadius: 6, padding: 8, textAlign: "center" }}><div style={{ color: "#94a3b8" }}>Fraud</div><strong style={{ color: "#22c55e" }}>{analysis ? `${analysis.fraudProbability}%` : "4%"}</strong></div>
+          <div style={{ background: "#f8fafc", borderRadius: 6, padding: 8, textAlign: "center" }}><div style={{ color: "#94a3b8" }}>Recovery</div><strong style={{ color: "#22c55e" }}>{analysis ? `${analysis.recoveryProbability}%` : "91%"}</strong></div>
+          <div style={{ background: "#f8fafc", borderRadius: 6, padding: 8, textAlign: "center" }}><div style={{ color: "#94a3b8" }}>Confidence</div><strong style={{ color: "#2b84ea" }}>{analysis ? `${Math.round((analysis.confidence || 0.94)*100)}%` : "94%"}</strong></div>
         </div>
-        <div style={{ fontSize: 11, color: "#334155", background: "#f8fafc", borderRadius: 6, padding: "8px 10px", marginTop: 8 }}>AI Reasoning: Temporary gateway failure detected. Transaction history is normal. Fraud probability is low. Alternative route has high success rate. Recommended action: <strong style={{ color: "#2b84ea" }}>SWITCH ROUTE + RETRY</strong></div>
+        <div style={{ fontSize: 11, color: "#334155", background: "#f8fafc", borderRadius: 6, padding: "8px 10px", marginTop: 8 }}>AI Reasoning: {analysis?.explanation || "Temporary gateway failure detected. Transaction history is normal. Fraud probability is low. Alternative route has high success rate. Recommended action: SWITCH ROUTE + RETRY"}</div>
       </div>
-
-      <div style={{ textAlign: "center", fontSize: 11, color: "#94a3b8" }}>
-        TXN-10482 · INITIATED → PROCESSING → FAILED → ANALYZING → AI_DECISION → RECOVERY → SUCCESS — governed autonomy
-      </div>
+      <div style={{ textAlign: "center", fontSize: 11, color: "#94a3b8" }}>{transactionId} · INITIATED → PROCESSING → FAILED → ANALYZING → AI_DECISION → RECOVERY → SUCCESS — governed autonomy</div>
     </div>
   );
 }
-
 export default AIInvestigations;
