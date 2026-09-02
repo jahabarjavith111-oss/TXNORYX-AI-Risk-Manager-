@@ -67,6 +67,15 @@ function BotIcon() {
   );
 }
 
+function AiIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 16V8a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points="17 8 12 1 7 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 const REFRESH_MS = 30000;
 
 function Sidebar() {
@@ -116,6 +125,10 @@ function Sidebar() {
         <NavLink to="/agent" className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`}>
           <BotIcon />
           <span className="link-label">Agent Activity</span>
+        </NavLink>
+        <NavLink to="/investigations" className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`}>
+          <AiIcon />
+          <span className="link-label">AI Investigations</span>
         </NavLink>
       </nav>
 

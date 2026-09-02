@@ -6,6 +6,9 @@ import { useToast } from "./Toast";
 const PAGE_META = {
   "/dashboard": { title: "Dashboard", subtitle: "Payment risk & recovery overview" },
   "/transactions": { title: "Transactions", subtitle: "All payment activity" },
+  "/fraud": { title: "Fraud Detection", subtitle: "Multi-factor fraud scoring engine" },
+  "/investigations": { title: "AI Investigations", subtitle: "AI-powered transaction analysis & decisions" },
+  "/agent": { title: "Agent Activity", subtitle: "Autonomous agent execution timeline" },
 };
 
 function RefreshIcon() {
@@ -35,7 +38,7 @@ function Topbar() {
     setSimulating(true);
     try {
       const txn = await simulateTransaction("GATEWAY_TIMEOUT");
-      notify(`Simulated ${txn.failureReason} — ${txn.transactionId} created`, "success");
+      notify(`✓ Simulation Created\n\nGateway Timeout scenario generated.\n${txn.transactionId}`, "success");
       window.dispatchEvent(new CustomEvent("txns:changed"));
     } catch {
       notify("Simulation failed — backend unreachable", "error");
@@ -62,10 +65,10 @@ function Topbar() {
           className="btn btn-primary"
           onClick={handleSimulate}
           disabled={simulating}
-          title="Create a simulated failed transaction"
+          title="Run a simulation scenario"
         >
           {simulating ? <span className="spinner" /> : <BoltIcon />}
-          {simulating ? "Simulating…" : "Simulate Failure"}
+          {simulating ? "Running…" : "⚡ Run Simulation"}
         </button>
       </div>
     </header>

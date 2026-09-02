@@ -4,9 +4,12 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis
 import StatCard from "../components/StatCard";
 import StatusBadge from "../components/StatusBadge";
 import RiskCard from "../components/RiskCard";
+import AnalyzeTransactionModal from "../components/AnalyzeTransactionModal";
 import { formatCurrency, formatNumber, formatDate, percent } from "../utils/format";
 import { getDashboardStats } from "../services/dashboardService";
 import { getTransactions } from "../services/transactionService";
+import { simulateTransaction } from "../services/transactionService";
+import { useToast } from "../components/Toast";
 
 const RISK_COLORS_MAP = { LOW: "#22c55e", MEDIUM: "#f59e0b", HIGH: "#f97316", CRITICAL: "#ef4444" };
 
@@ -16,6 +19,8 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
+  const [showAnalyze, setShowAnalyze] = useState(false);
+  const notify = useToast();
   const navigate = useNavigate();
 
   const load = useCallback(() => {
@@ -110,8 +115,23 @@ function Dashboard() {
     );
   }
 
+  const handleRunSim = async (scenario="GATEWAY_TIMEOUT") => {
+    try { const t = await simulateTransaction(scenario); notify(`✓ Simulation Created — ${t.transactionId}`, "success"); window.dispatchEvent(new CustomEvent("txns:changed")); } catch { notify("Simulation failed","error"); }
+  };
   return (
     <main style={{ padding: "20px", minHeight: "100vh" }}>
+      <div style={{ marginBottom:14, display:"flex", gap:10, flexWrap:"wrap" }}>
+        <button onClick={()=>setShowAnalyze(true)} style={{ padding:"10px 16px", borderRadius:10, border:"none", background:"#0ea5e9", color:"#fff", fontWeight:800, cursor:"pointer" }}>+ Analyze Transaction</button>
+        <button onClick={()=>handleRunSim()} style={{ padding:"10px 16px", borderRadius:10, border:"1px solid #e2e8f0", background:"#fff", fontWeight:800, cursor:"pointer" }}>⚡ Run Simulation</button>
+        <select onChange={e=>e.target.value&&handleRunSim(e.target.value)} defaultValue="" style={{ padding:"10px", borderRadius:10, border:"1px solid #e2e8f0", fontSize:12 }}>
+          <option value="" disabled>Scenario ▾</option>
+          <option value="GATEWAY_TIMEOUT">Gateway Timeout → RETRY</option>
+          <option value="SUSPICIOUS">Suspicious → BLOCK</option>
+          <option value="DECLINED">Declined → VERIFY</option>
+          <option value="SUCCESS">Success → APPROVE</option>
+        </select>
+      </div>
+      <AnalyzeTransactionModal open={showAnalyze} onClose={()=>setShowAnalyze(false)} onCreated={()=>load()} />
       <div style={{ marginBottom: 20, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 16 }}>
         <StatCard icon={<span>📊</span>} tone={{ main: "#667eea", soft: "rgba(102,126,255,0.12)" }} label="Total Transactions" value={formatNumber(total)} sub={`${formatNumber(recovered)} recovered`} />
         <StatCard icon={<span>💰</span>} tone={{ main: "#12b76a", soft: "rgba(18,183,106,0.12)" }} label="Total Volume" value={formatCurrency(stats?.totalVolume)} sub="Across all payments" />

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import StatusBadge from "../components/StatusBadge";
 import { TableSkeleton } from "../components/Skeleton";
+import AnalyzeTransactionModal from "../components/AnalyzeTransactionModal";
 import { getTransactions } from "../services/transactionService";
 import {
   formatCurrency,
@@ -36,6 +37,7 @@ function Transactions() {
   const [error, setError] = useState(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [showAnalyze, setShowAnalyze] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -79,7 +81,12 @@ function Transactions() {
   );
 
   return (
-    <div className="card">
+    <>
+      <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:10 }}>
+        <button onClick={()=>setShowAnalyze(true)} style={{ padding:"8px 14px", borderRadius:8, border:"none", background:"#0ea5e9", color:"#fff", fontWeight:800, cursor:"pointer" }}>+ Analyze Transaction</button>
+      </div>
+      <AnalyzeTransactionModal open={showAnalyze} onClose={()=>setShowAnalyze(false)} onCreated={load} />
+      <div className="card">
       <div className="table-toolbar">
         <div className="search-input">
           <SearchIcon />
@@ -159,8 +166,9 @@ function Transactions() {
             </tbody>
           </table>
         </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 }
 

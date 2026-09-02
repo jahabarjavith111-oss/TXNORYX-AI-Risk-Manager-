@@ -19,6 +19,7 @@ function App() {
           <Route path="/dashboard" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/investigations/:transactionId" element={<AIInvestigations />} />
+          <Route path="/investigations" element={<AIInvestigations />} />
           <Route path="/fraud" element={<FraudDetection />} />
           <Route path="/agent" element={<AgentActivity />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
