@@ -9,11 +9,14 @@ import com.txnoryx.backend.model.TransactionEvent;
 import com.txnoryx.backend.repository.TransactionEventRepository;
 import com.txnoryx.backend.repository.TransactionRepository;
 
+import com.txnoryx.backend.security.PromptSanitizer;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.HtmlUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class TransactionService {
@@ -31,17 +34,17 @@ public class TransactionService {
     }
 
     public Transaction createTransaction(CreateTransactionRequest request) {
-
+        if (transactionRepository.findByTransactionIdIgnoreCase(request.getTransactionId().trim()).isPresent()) throw new IllegalArgumentException("Duplicate transactionId: "+request.getTransactionId());
         Transaction transaction = new Transaction();
-        transaction.setTransactionId(request.getTransactionId());
+        transaction.setTransactionId(HtmlUtils.htmlEscape(request.getTransactionId().trim().toUpperCase()));
         transaction.setUserId(request.getUserId());
         transaction.setAmount(request.getAmount());
         transaction.setCurrency(request.getCurrency());
         transaction.setPaymentMethod(request.getPaymentMethod());
-        transaction.setMerchant(request.getMerchant());
-        transaction.setFailureReason(request.getFailureReason());
-        transaction.setDeviceId(request.getDeviceId());
-        transaction.setLocation(request.getLocation());
+        transaction.setMerchant(HtmlUtils.htmlEscape(PromptSanitizer.sanitize(request.getMerchant())));
+        transaction.setFailureReason(HtmlUtils.htmlEscape(PromptSanitizer.sanitize(request.getFailureReason())));
+        transaction.setDeviceId(HtmlUtils.htmlEscape(request.getDeviceId()));
+        transaction.setLocation(HtmlUtils.htmlEscape(PromptSanitizer.sanitize(request.getLocation())));
         transaction.setStatus(
                 request.getStatus() != null ? request.getStatus() : "PENDING");
         transaction.setCreatedAt(LocalDateTime.now());
@@ -65,8 +68,11 @@ public class TransactionService {
 
 
     public List<Transaction> getAllTransactions() {
-        return transactionRepository.findAll();
+        return transactionRepository.findAll().stream().peek(t->{
+            if(t.getDeviceId()!=null) t.setDeviceId(mask(t.getDeviceId()));
+        }).collect(Collectors.toList());
     }
+    private String mask(String s){ if(s==null||s.length()<=4) return "***"; return "***"+s.substring(s.length()-4); }
 
 
     public Transaction simulateTransaction(SimulateRequest request) {
