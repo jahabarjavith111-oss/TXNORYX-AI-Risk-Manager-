@@ -1,10 +1,22 @@
 package com.txnoryx.backend.auth;
+import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 @Service
 public class OtpMailService {
     private static final Logger log = LoggerFactory.getLogger(OtpMailService.class);
+    private final JavaMailSender sender;
+    private final boolean enabled;
+    private final String from;
+    public OtpMailService(JavaMailSender sender,
+                          @Value("${txnoryx.mail.enabled:false}") boolean enabled,
+                          @Value("${txnoryx.mail.from:}") String from){
+        this.sender=sender; this.enabled=enabled; this.from=from;
+    }
     public String buildHtml(String name, String otp){
         String safe = name==null?"there":name.replace("<","").replace(">","");
         return "<!DOCTYPE html><html><body style=\"margin:0;padding:0;background:#f4f6fb;font-family:Arial,Helvetica,sans-serif;\">"
@@ -22,6 +34,21 @@ public class OtpMailService {
     }
     public void send(String to, String name, String otp){
         String html = buildHtml(name, otp);
+        if(enabled && from!=null && !from.isBlank()){
+            try{
+                MimeMessage msg = sender.createMimeMessage();
+                MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
+                h.setFrom(from, "TXNORYX");
+                h.setTo(to);
+                h.setSubject("Verify your TXNORYX account");
+                h.setText(html, true);
+                sender.send(msg);
+                log.info("OTP email sent to {}", to);
+                return;
+            }catch(Exception e){
+                log.warn("SMTP send failed to {} - falling back to log. err={}", to, e.getMessage());
+            }
+        }
         log.info("OTP email to {} subject='Verify your TXNORYX account' otp={}", to, otp);
         log.debug("OTP email html: {}", html);
     }
