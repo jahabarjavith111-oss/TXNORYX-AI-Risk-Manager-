@@ -12,7 +12,7 @@ public class RateLimitFilter implements Filter {
     private final ConcurrentHashMap<String,int[]> buckets=new ConcurrentHashMap<>();
     public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain) throws IOException, ServletException {
         HttpServletRequest r=(HttpServletRequest)req; String path=r.getRequestURI();
-        boolean sensitive=path.contains("/simulate")||path.contains("/analyze")||path.contains("/agent/execute");
+        boolean sensitive=path.contains("/simulate")||path.contains("/analyze")||path.contains("/agent/execute")||path.contains("/auth/signup")||path.contains("/auth/signin")||path.contains("/auth/verify-otp")||path.contains("/auth/resend-otp");
         if(!sensitive){ chain.doFilter(req,res); return; }
         String key=r.getRemoteAddr()+":"+path;
         int[] b=buckets.computeIfAbsent(key,k->new int[]{0, (int)(System.currentTimeMillis()/60000)});

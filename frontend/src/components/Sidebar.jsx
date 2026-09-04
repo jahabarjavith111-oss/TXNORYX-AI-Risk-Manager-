@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import api from "../services/api";
+import { useAuth } from "../auth/AuthContext";
 
 function LogoMark() {
   return (
@@ -80,6 +81,9 @@ const REFRESH_MS = 30000;
 
 function Sidebar() {
   const [healthUp, setHealthUp] = useState(null);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const doLogout = async () => { await logout(); navigate("/", { replace: true }); };
 
   useEffect(() => {
     let active = true;
@@ -133,6 +137,11 @@ function Sidebar() {
       </nav>
 
       <div className="sidebar-footer">
+        {user && (
+          <button onClick={doLogout} className="sidebar-link" style={{ width: "100%", border: "none", background: "none", cursor: "pointer", textAlign: "left" }}>
+            <span className="link-label">🚪 Logout ({user.name?.split(" ")[0]})</span>
+          </button>
+        )}
         <div className={`health-pill ${healthUp ? "up" : healthUp === false ? "down" : ""}`}>
           <span className="health-dot" />
           <span className="health-text">
