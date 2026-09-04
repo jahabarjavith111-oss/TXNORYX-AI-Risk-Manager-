@@ -33,24 +33,21 @@ public class OtpMailService {
         + "</div></body></html>";
     }
     public void send(String to, String name, String otp){
+        if(!enabled || from==null || from.isBlank()) throw new RuntimeException("Email service not configured - set GMAIL_USER, GMAIL_APP_PASSWORD and MAIL_ENABLED=true");
         String html = buildHtml(name, otp);
-        if(enabled && from!=null && !from.isBlank()){
-            try{
-                MimeMessage msg = sender.createMimeMessage();
-                MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
-                h.setFrom(from, "TXNORYX");
-                h.setTo(to);
-                h.setSubject("Verify your TXNORYX account");
-                h.setText(html, true);
-                sender.send(msg);
-                log.info("OTP email sent to {}", to);
-                return;
-            }catch(Exception e){
-                log.warn("SMTP send failed to {} - falling back to log. err={}", to, e.getMessage());
-            }
+        try{
+            MimeMessage msg = sender.createMimeMessage();
+            MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
+            h.setFrom(from, "TXNORYX");
+            h.setTo(to);
+            h.setSubject("Verify your TXNORYX account");
+            h.setText(html, true);
+            sender.send(msg);
+            log.info("OTP email sent to {}", to);
+        }catch(Exception e){
+            log.error("SMTP send failed to {} err={}", to, e.getMessage());
+            throw new RuntimeException("Could not send OTP email - please try again");
         }
-        log.info("OTP email to {} subject='Verify your TXNORYX account' otp={}", to, otp);
-        log.debug("OTP email html: {}", html);
     }
     public String preview(String name, String otp){ return buildHtml(name, otp); }
 }

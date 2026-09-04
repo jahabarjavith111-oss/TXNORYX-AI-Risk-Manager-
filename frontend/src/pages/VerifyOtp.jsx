@@ -12,7 +12,6 @@ export default function VerifyOtp() {
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [cool, setCool] = useState(0);
-  const [devOtp, setDevOtp] = useState(loc.state?.devOtp || null);
   useEffect(() => {
     if (cool <= 0) return;
     const t = setTimeout(() => setCool((c) => c - 1), 1000);
@@ -32,10 +31,9 @@ export default function VerifyOtp() {
   const resend = async () => {
     if (cool > 0) return;
     try {
-      const r = await resendOtp(email);
-      setDevOtp(r.devOtp || null);
+      await resendOtp(email);
       setCool(60);
-      notify("New OTP sent", "success");
+      notify("New OTP sent to your email", "success");
     } catch (err) { notify(err?.response?.data?.error || "Resend failed", "error"); }
   };
   return (
@@ -43,8 +41,7 @@ export default function VerifyOtp() {
       <div className="auth-card">
         <div className="auth-logo-c">TXNORYX</div>
         <h1>Verify your email address</h1>
-        <p className="auth-sub">Use the verification code below to complete your account setup.</p>
-        {devOtp && <div className="auth-demo">Demo mode — your OTP is <strong>{devOtp}</strong> (valid 10 min)</div>}
+        <p className="auth-sub">We sent a 6-digit verification code to <strong>{email || "your email"}</strong>. Enter it below to complete your account setup.</p>
         <form onSubmit={submit} className="auth-form">
           <label>Work Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@company.com" /></label>
           <label>Verification Code<input className="otp-inp" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} required placeholder="••••••" inputMode="numeric" /></label>

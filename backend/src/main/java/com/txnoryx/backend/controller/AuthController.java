@@ -41,7 +41,7 @@ public class AuthController {
         String otp=otpService.issue(u);
         users.save(u);
         mail.send(u.getEmail(), u.getName(), otp);
-        return Map.of("success",true,"status","pending_verification","email",u.getEmail(),"otpSent",true,"message","Account created - verify the OTP sent to your email","devOtp",otp);
+        return Map.of("success",true,"status","pending_verification","email",u.getEmail(),"otpSent",true,"message","Account created - verify the OTP sent to your email");
     }
     @PostMapping("/verify-otp")
     public Map<String,Object> verify(@Valid @RequestBody VerifyOtpRequest req){
@@ -73,7 +73,7 @@ public class AuthController {
         User u=users.findByEmailIgnoreCase(email).orElseThrow(()->new IllegalArgumentException("Account not found"));
         if("active".equals(u.getStatus())) throw new IllegalArgumentException("Account already verified - please sign in");
         String otp=otpService.issue(u); users.save(u); mail.send(u.getEmail(), u.getName(), otp);
-        return Map.of("success",true,"otpSent",true,"message","New OTP sent","devOtp",otp);
+        return Map.of("success",true,"otpSent",true,"message","New OTP sent to your email");
     }
     @GetMapping("/me")
     public Map<String,Object> me(@RequestHeader(value="Authorization", required=false) String auth){

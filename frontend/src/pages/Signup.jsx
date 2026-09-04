@@ -15,8 +15,8 @@ export default function Signup() {
     setLoading(true);
     try {
       const r = await signup({ name: form.name, email: form.email, organization: form.organization, password: form.password, confirmPassword: form.confirmPassword });
-      notify("Account created - OTP sent to your email", "success");
-      navigate("/verify-otp", { state: { email: r.email, devOtp: r.devOtp } });
+      notify("Account created - check your email for the OTP", "success");
+      navigate("/verify-otp", { state: { email: r.email } });
     } catch (err) { notify(err?.response?.data?.error || "Signup failed", "error"); }
     finally { setLoading(false); }
   };
