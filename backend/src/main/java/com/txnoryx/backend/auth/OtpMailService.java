@@ -33,7 +33,7 @@ public class OtpMailService {
         + "</div></body></html>";
     }
     public void send(String to, String name, String otp){
-        if(!enabled || from==null || from.isBlank()) throw new RuntimeException("Email service not configured - set GMAIL_USER, GMAIL_APP_PASSWORD and MAIL_ENABLED=true");
+        if(!enabled || from==null || from.isBlank()) throw new MailException("Email service not configured - set GMAIL_USER, GMAIL_APP_PASSWORD and MAIL_ENABLED=true");
         String html = buildHtml(name, otp);
         try{
             MimeMessage msg = sender.createMimeMessage();
@@ -46,7 +46,7 @@ public class OtpMailService {
             log.info("OTP email sent to {}", to);
         }catch(Exception e){
             log.error("SMTP send failed to {} err={}", to, e.getMessage());
-            throw new RuntimeException("Could not send OTP email - please try again");
+            throw new MailException("Could not send OTP email - please try again");
         }
     }
     public String preview(String name, String otp){ return buildHtml(name, otp); }

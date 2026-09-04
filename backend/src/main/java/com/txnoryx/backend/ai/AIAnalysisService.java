@@ -19,6 +19,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -48,7 +49,19 @@ public AIAnalysisService(TransactionRepository transactionRepository,
 
     public AIAnalysis getCachedAnalysis(String transactionId) {
         String nid = transactionId != null ? transactionId.trim() : "";
-        return aiAnalysisRepository.findByTransactionIdIgnoreCase(nid).orElse(null);
+        try {
+            List<AIAnalysis> all = aiAnalysisRepository.findAllByTransactionIdIgnoreCase(nid);
+            if (all == null || all.isEmpty()) return null;
+            AIAnalysis latest = all.stream().max(java.util.Comparator.comparing(AIAnalysis::getId)).orElse(null);
+            if (all.size() > 1) {
+                try {
+                    for (AIAnalysis a : all) if (!a.getId().equals(latest.getId())) aiAnalysisRepository.delete(a);
+                } catch (Exception ignored) {}
+            }
+            return latest;
+        } catch (Exception e) {
+            return aiAnalysisRepository.findByTransactionId(nid).orElse(null);
+        }
     }
 
     @Transactional
@@ -184,8 +197,9 @@ public AIAnalysisService(TransactionRepository transactionRepository,
         }
 
         try {
-            Optional<AIAnalysis> dup = aiAnalysisRepository.findByTransactionIdIgnoreCase(nid);
-            if (dup.isPresent()) aiAnalysisRepository.delete(dup.get());
+            List<AIAnalysis> dups = aiAnalysisRepository.findAllByTransactionIdIgnoreCase(nid);
+            for (AIAnalysis d : dups) aiAnalysisRepository.delete(d);
+            aiAnalysisRepository.flush();
         } catch (Exception ignored) {}
         try {
             aiAnalysisRepository.save(analysis);

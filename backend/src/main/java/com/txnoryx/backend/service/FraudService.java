@@ -43,6 +43,10 @@ public class FraudService {
     }
 
     private void persistAnalysis(FraudAnalysis analysis) {
+        try {
+            for (FraudAnalysisRecord d : fraudAnalysisRecordRepository.findAllByTransactionIdIgnoreCase(analysis.getTransactionId())) fraudAnalysisRecordRepository.delete(d);
+            fraudAnalysisRecordRepository.flush();
+        } catch (Exception ignored) {}
         FraudAnalysisRecord record = new FraudAnalysisRecord(
                 analysis.getTransactionId(),
                 analysis.getRiskScore(),
